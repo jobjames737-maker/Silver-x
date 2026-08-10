@@ -4776,6 +4776,110 @@ if (option === "off") {
   });
   return;
         }
+        // ============================================
+// Kick Command
+// Usage: .kick @user
+//        .kick (reply to user's message)
+// ============================================
+if (command === "kick") {
+  const groupId = message.key.remoteJid;
+
+  // Kick only works in groups
+  if (!groupId?.endsWith("@g.us")) {
+    await sock.sendMessage(groupId, {
+      text: "❌ This command can only be used in groups.",
+    });
+    return;
+  }
+
+  // Admin/owner permission
+  if (!isAdmin && !canUseAsOwner) {
+    await sock.sendMessage(groupId, {
+      text: "❌ Admins only.",
+    });
+    return;
+  }
+
+  let targetJid = null;
+
+  // 1. Check @mention
+  const mentionedJids =
+    message.message?.extendedTextMessage?.contextInfo?.mentionedJid || [];
+
+  if (mentionedJids.length > 0) {
+    targetJid = normalizeJid(mentionedJids[0]);
+  }
+
+  // 2. If no mention, check replied message
+  if (!targetJid) {
+    const contextInfo =
+      message.message?.extendedTextMessage?.contextInfo;
+
+    if (contextInfo?.participant) {
+      targetJid = normalizeJid(contextInfo.participant);
+    }
+  }
+
+  if (!targetJid) {
+    await sock.sendMessage(groupId, {
+      text:
+        "❌ Please mention or reply to the person you want to kick.\n\n" +
+        "Usage:\n" +
+        "• .kick @user\n" +
+        "• Reply to a message with .kick",
+    });
+    return;
+  }
+
+  // Don't allow kicking the bot itself
+  if (targetJid === normalizeJid(sock.user?.id)) {
+    await sock.sendMessage(groupId, {
+      text: "😂 I can't kick myself.",
+    });
+    return;
+  }
+
+  // Don't allow kicking the command sender
+  if (targetJid === normalizeJid(sender)) {
+    await sock.sendMessage(groupId, {
+      text: "😂 You can't kick yourself.",
+    });
+    return;
+  }
+
+  try {
+    await sock.groupParticipantsUpdate(
+      groupId,
+      [targetJid],
+      "remove"
+    );
+
+    await sock.sendMessage(groupId, {
+      text: `👢 @${targetJid.split("@")[0]} has been kicked from the group.`,
+      mentions: [targetJid],
+    });
+
+    logger.info(
+      { groupId, target: targetJid },
+      "User kicked using .kick command"
+    );
+
+  } catch (err) {
+    logger.error(
+      { error: err.message, target: targetJid },
+      "Kick command failed"
+    );
+
+    await sock.sendMessage(groupId, {
+      text:
+        `❌ Failed to kick @${targetJid.split("@")[0]}.\n\n` +
+        "Make sure the bot is an admin and the target can be removed.",
+      mentions: [targetJid],
+    });
+  }
+
+  return;
+}
         if (command === "getpp") {
           let targetJid = null;
           
