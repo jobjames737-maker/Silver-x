@@ -4784,7 +4784,7 @@ if (option === "off") {
 if (command === "kick") {
   const groupId = message.key.remoteJid;
 
-  // Kick only works in groups
+  // Group only
   if (!groupId?.endsWith("@g.us")) {
     await sock.sendMessage(groupId, {
       text: "❌ This command can only be used in groups.",
@@ -4792,7 +4792,7 @@ if (command === "kick") {
     return;
   }
 
-  // Admin/owner permission
+  // Admin / owner permission
   if (!isAdmin && !canUseAsOwner) {
     await sock.sendMessage(groupId, {
       text: "❌ Admins only.",
@@ -4800,27 +4800,27 @@ if (command === "kick") {
     return;
   }
 
-  let targetJid = null;
+  let mentionedJid = null;
 
-  // 1. Check @mention
+  // Get @mention
   const mentionedJids =
     message.message?.extendedTextMessage?.contextInfo?.mentionedJid || [];
 
   if (mentionedJids.length > 0) {
-    targetJid = normalizeJid(mentionedJids[0]);
+    mentionedJid = mentionedJids[0];
   }
 
-  // 2. If no mention, check replied message
-  if (!targetJid) {
+  // Get replied participant if no mention
+  if (!mentionedJid) {
     const contextInfo =
       message.message?.extendedTextMessage?.contextInfo;
 
     if (contextInfo?.participant) {
-      targetJid = normalizeJid(contextInfo.participant);
+      mentionedJid = contextInfo.participant;
     }
   }
 
-  if (!targetJid) {
+  if (!mentionedJid) {
     await sock.sendMessage(groupId, {
       text:
         "❌ Please mention or reply to the person you want to kick.\n\n" +
@@ -4831,23 +4831,89 @@ if (command === "kick") {
     return;
   }
 
-  // Don't allow kicking the bot itself
-  if (targetJid === normalizeJid(sock.user?.id)) {
-    await sock.sendMessage(groupId, {
-      text: "😂 I can't kick myself.",
-    });
-    return;
-  }
-
-  // Don't allow kicking the command sender
-  if (targetJid === normalizeJid(sender)) {
-    await sock.sendMessage(groupId, {
-      text: "😂 You can't kick yourself.",
-    });
-    return;
-  }
-
   try {
+    // Get fresh group participant list
+    const metadata = await sock.groupMetadata(groupId);
+    const participants = metadata.participants || [];
+
+    // Find the actual WhatsApp participant
+    const targetParticipant = participants.find((p) => {
+      if (!p?.id) return false;
+
+      // Exact match
+      if (p.id === mentionedJid) return true;
+
+      // Normalized match
+      if (normalizeJid(p.id) === normalizeJid(mentionedJid)) {
+        return true;
+      }
+
+      // Match alternate JID if WhatsApp supplied one
+      if (p.lid && p.lid === mentionedJid) {
+        return true;
+      }
+
+      if (p.phoneNumber && p.phoneNumber === mentionedJid) {
+        return true;
+      }
+
+      return false;
+    });
+
+    if (!targetParticipant) {
+      await sock.sendMessage(groupId, {
+        text:
+          "❌ I couldn't identify that member in the group.\n\n" +
+          "Try mentioning the person again.",
+      });
+
+      logger.warn(
+        {
+          mentionedJid,
+          participantCount: participants.length,
+        },
+        "Kick target not found in group participants"
+      );
+
+      return;
+    }
+
+    // IMPORTANT:
+    // Use the actual participant ID returned by WhatsApp.
+    const targetJid = targetParticipant.id;
+
+    // Don't kick the bot
+    if (
+      targetJid === sock.user?.id ||
+      normalizeJid(targetJid) === normalizeJid(sock.user?.id)
+    ) {
+      await sock.sendMessage(groupId, {
+        text: "😂 I can't kick myself.",
+      });
+      return;
+    }
+
+    // Don't kick the command sender
+    if (
+      targetJid === sender ||
+      normalizeJid(targetJid) === normalizeJid(sender)
+    ) {
+      await sock.sendMessage(groupId, {
+        text: "😂 You can't kick yourself.",
+      });
+      return;
+    }
+
+    logger.info(
+      {
+        mentionedJid,
+        resolvedJid: targetJid,
+        targetAdmin: targetParticipant.admin || null,
+      },
+      "Kick target resolved"
+    );
+
+    // Remove using WhatsApp's actual participant ID
     await sock.groupParticipantsUpdate(
       groupId,
       [targetJid],
@@ -4860,21 +4926,27 @@ if (command === "kick") {
     });
 
     logger.info(
-      { groupId, target: targetJid },
+      {
+        groupId,
+        target: targetJid,
+      },
       "User kicked using .kick command"
     );
 
   } catch (err) {
     logger.error(
-      { error: err.message, target: targetJid },
+      {
+        error: err.message,
+        target: mentionedJid,
+      },
       "Kick command failed"
     );
 
     await sock.sendMessage(groupId, {
       text:
-        `❌ Failed to kick @${targetJid.split("@")[0]}.\n\n` +
-        "Make sure the bot is an admin and the target can be removed.",
-      mentions: [targetJid],
+        `❌ Failed to kick the selected member.\n\n` +
+        `Error: ${err.message}\n\n` +
+        `Make sure the bot is an admin and the target can be removed.`,
     });
   }
 
