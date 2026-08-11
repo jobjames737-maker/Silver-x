@@ -2638,14 +2638,14 @@ if (message.key.remoteJid.endsWith("@g.us") && !message.key.fromMe) {
 
             await sock.sendMessage(groupJid, {
               text:
-                "╭━━━〔 🎉 LEVEL UP! 〕━━━╮\\n\\n" +
-                `👤 @${userJid.split("@")[0]}\\n` +
-                `⭐ *Level ${newLevel}*\\n` +
-                `🏅 *${newTitle}*\\n` +
-                `✨ EXP: *${userData.exp}*\\n\\n` +
+                "╭━━━〔 🎉 LEVEL UP! 〕━━━╮\n\n" +
+                `👤 @${userJid.split("@")[0]}\n` +
+                `⭐ *Level ${newLevel}*\n` +
+                `🏅 *${newTitle}*\n` +
+                `✨ EXP: *${userData.exp}*\n\n` +
                 (titleChanged
-                  ? "🎖️ *NEW RANK TITLE UNLOCKED!*\\n\\n"
-                  : "🔥 Keep chatting to reach the next level!\\n\\n") +
+                  ? "🎖️ *NEW RANK TITLE UNLOCKED!*\n\n"
+                  : "🔥 Keep chatting to reach the next level!\n\n") +
                 "╰━━━━━━━━━━━━━━━━━━━━╯",
               mentions: [userJid]
             });
@@ -3600,7 +3600,7 @@ if (command === "rank" || command === "level") {
   if (!expEnabled[groupJid]) {
     await sock.sendMessage(groupJid, {
       text:
-        "❌ *EXP system is disabled in this group.*\\n\\n" +
+        "❌ *EXP system is disabled in this group.*\n\n" +
         `An admin can enable it with *${PREFIX}exp enable*.`
     });
     return;
@@ -3686,14 +3686,14 @@ if (command === "rank" || command === "level") {
 
   await sock.sendMessage(groupJid, {
     text:
-      "╭━━━〔 🏆 EXP RANK 〕━━━╮\\n\\n" +
-      `👤 @${targetJid.split("@")[0]}\\n` +
-      `🏅 *Title:* ${expTitle}\\n\\n` +
-      `⭐ *Level:* ${currentLevel}\\n` +
-      `✨ *EXP:* ${userData.exp}\\n\\n` +
-      `${progressBar} *${progress}%*\\n\\n` +
-      `📈 *Next Level:* ${nextLevelExp} EXP\\n` +
-      `💫 *Remaining:* ${remaining} EXP\\n\\n` +
+      "╭━━━〔 🏆 EXP RANK 〕━━━╮\n\n" +
+      `👤 @${targetJid.split("@")[0]}\n` +
+      `🏅 *Title:* ${expTitle}\n\n` +
+      `⭐ *Level:* ${currentLevel}\n` +
+      `✨ *EXP:* ${userData.exp}\n\n` +
+      `${progressBar} *${progress}%*\n\n` +
+      `📈 *Next Level:* ${nextLevelExp} EXP\n` +
+      `💫 *Remaining:* ${remaining} EXP\n\n` +
       "╰━━━━━━━━━━━━━━━━━━━━╯",
     mentions: [targetJid]
   });
@@ -3719,7 +3719,7 @@ if (command === "expleaderboard" || command === "top") {
   if (!expEnabled[groupJid]) {
     await sock.sendMessage(groupJid, {
       text:
-        "❌ *EXP system is disabled in this group.*\\n\\n" +
+        "❌ *EXP system is disabled in this group.*\n\n" +
         `An admin can enable it with *${PREFIX}exp enable*.`
     });
     return;
@@ -3742,9 +3742,9 @@ if (command === "expleaderboard" || command === "top") {
   if (leaderboard.length === 0) {
     await sock.sendMessage(groupJid, {
       text:
-        "╭━━━〔 🏆 EXP LEADERBOARD 〕━━━╮\\n\\n" +
-        "📭 No EXP has been earned yet.\\n\\n" +
-        `💬 Start chatting to earn EXP!\\n\\n` +
+        "╭━━━〔 🏆 EXP LEADERBOARD 〕━━━╮\n\n" +
+        "📭 No EXP has been earned yet.\n\n" +
+        `💬 Start chatting to earn EXP!\n\n` +
         "╰━━━━━━━━━━━━━━━━━━━━╯"
     });
     return;
@@ -3754,7 +3754,7 @@ if (command === "expleaderboard" || command === "top") {
   const mentions = [];
 
   let text =
-    "╭━━━〔 🏆 EXP LEADERBOARD 〕━━━╮\\n\\n";
+    "╭━━━〔 🏆 EXP LEADERBOARD 〕━━━╮\n\n";
 
   leaderboard.forEach((user, index) => {
     const medal = medals[index] || `${index + 1}️⃣`;
@@ -3762,8 +3762,8 @@ if (command === "expleaderboard" || command === "top") {
     mentions.push(user.jid);
 
     text +=
-      `${medal} @${user.jid.split("@")[0]}\\n` +
-      `   ⭐ Level ${user.level} • ✨ ${user.exp} EXP\\n\\n`;
+      `${medal} @${user.jid.split("@")[0]}\n` +
+      `   ⭐ Level ${user.level} • ✨ ${user.exp} EXP\n\n`;
   });
 
   text += "╰━━━━━━━━━━━━━━━━━━━━╯";
@@ -3793,7 +3793,7 @@ if (command === "leaderboard" || command === "lb" || command === "top") {
   if (!expEnabled[groupJid]) {
     await sock.sendMessage(groupJid, {
       text:
-        "❌ *EXP system is disabled in this group.*\\n\\n" +
+        "❌ *EXP system is disabled in this group.*\n\n" +
         `An admin can enable it with *${PREFIX}exp enable*.`
     });
     return;
@@ -3809,9 +3809,9 @@ if (command === "leaderboard" || command === "lb" || command === "top") {
   if (ranked.length === 0) {
     await sock.sendMessage(groupJid, {
       text:
-        "╭━━━〔 🏆 EXP LEADERBOARD 〕━━━╮\\n\\n" +
-        "📭 No members have earned EXP yet.\\n\\n" +
-        `💬 Start chatting to become the first!\\n\\n` +
+        "╭━━━〔 🏆 EXP LEADERBOARD 〕━━━╮\n\n" +
+        "📭 No members have earned EXP yet.\n\n" +
+        `💬 Start chatting to become the first!\n\n` +
         "╰━━━━━━━━━━━━━━━━━━━━━━━━╯"
     });
     return;
@@ -3820,8 +3820,8 @@ if (command === "leaderboard" || command === "lb" || command === "top") {
   const mentions = [];
 
   let text =
-    "╭━━━〔 🏆 EXP LEADERBOARD 〕━━━╮\\n\\n" +
-    "      ⭐ *TOP 10 MEMBERS* ⭐\\n\\n";
+    "╭━━━〔 🏆 EXP LEADERBOARD 〕━━━╮\n\n" +
+    "      ⭐ *TOP 10 MEMBERS* ⭐\n\n";
 
   ranked.forEach(([jid, data], index) => {
 
@@ -3835,8 +3835,8 @@ if (command === "leaderboard" || command === "lb" || command === "top") {
     mentions.push(jid);
 
     text +=
-      `${position} @${jid.split("@")[0]}\\n` +
-      `   🏅 ${title} • ⭐ Lv.${level} • ✨ ${exp} EXP\\n\\n`;
+      `${position} @${jid.split("@")[0]}\n` +
+      `   🏅 ${title} • ⭐ Lv.${level} • ✨ ${exp} EXP\n\n`;
   });
 
   text += "╰━━━━━━━━━━━━━━━━━━━━━━━━╯";
