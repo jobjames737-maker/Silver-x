@@ -4954,33 +4954,86 @@ if (command === "kick") {
 }
         if (command === "getpp") {
           let targetJid = null;
-          
-          // Check if replying to a message
-          const quoted = message.message.extendedTextMessage?.contextInfo;
-          if (quoted?.participant) {
-            targetJid = normalizeJid(quoted.participant);
-          } else if (quoted?.mentionedJid?.length > 0) {
-            targetJid = normalizeJid(quoted.mentionedJid[0]);
-          }
-          
-          // Check for @mentions in the command
-          const mentionedJids = message.message?.extendedTextMessage?.contextInfo?.mentionedJid || [];
-          if (!targetJid && mentionedJids.length > 0) {
-            targetJid = normalizeJid(mentionedJids[0]);
-          }
-          
-          // Check for number in args
-          if (!targetJid && args[0]) {
-            const num = args[0].replace(/[^0-9]/g, '');
-            if (num.length >= 10) {
-              targetJid = normalizeJid(`${num}@s.whatsapp.net`);
-            }
-          }
 
-          // DM Fallback: If no target, and it's a private chat, grab the chat partner's JID
-          if (!targetJid && !message.key.remoteJid.endsWith('@g.us')) {
-            targetJid = normalizeJid(message.key.remoteJid);
-          }
+// ============================================
+// Resolve target from reply / mention / number
+// ============================================
+
+// 1. If replying to someone, get their participant ID
+const contextInfo =
+  message.message?.extendedTextMessage?.contextInfo;
+
+const repliedParticipant = contextInfo?.participant;
+
+if (repliedParticipant) {
+  targetJid = repliedParticipant;
+}
+
+// 2. If mentioning someone, resolve them from group metadata
+const mentionedJids = contextInfo?.mentionedJid || [];
+
+if (!targetJid && mentionedJids.length > 0) {
+  const mentionedJid = mentionedJids[0];
+
+  if (message.key.remoteJid?.endsWith("@g.us")) {
+    try {
+      const groupMetadata = await sock.groupMetadata(
+        message.key.remoteJid
+      );
+
+      const participant = groupMetadata.participants?.find((p) => {
+        if (!p?.id) return false;
+
+        // Exact match
+        if (p.id === mentionedJid) return true;
+
+        // Match LID / alternate identity when available
+        if (p.lid && p.lid === mentionedJid) return true;
+
+        if (p.phoneNumber && p.phoneNumber === mentionedJid) {
+          return true;
+        }
+
+        // Normalized fallback
+        try {
+          return normalizeJid(p.id) === normalizeJid(mentionedJid);
+        } catch {
+          return false;
+        }
+      });
+
+      if (participant) {
+        // IMPORTANT: use WhatsApp's actual participant ID
+        targetJid = participant.id;
+      }
+    } catch (err) {
+      logger.error(
+        { error: err.message },
+        "Failed to resolve getpp group participant"
+      );
+    }
+  } else {
+    targetJid = mentionedJid;
+  }
+}
+
+// 3. If a number was supplied, convert it normally
+if (!targetJid && args[0]) {
+  const num = args[0].replace(/[^0-9]/g, '');
+
+  if (num.length >= 10) {
+    targetJid = `${num}@s.whatsapp.net`;
+  }
+}
+
+// 4. DM fallback — the person you're chatting with
+if (
+  !targetJid &&
+  !message.key.remoteJid?.endsWith("@g.us") &&
+  message.key.remoteJid
+) {
+  targetJid = message.key.remoteJid;
+}
           
           if (!targetJid) {
             await sock.sendMessage(message.key.remoteJid, {
