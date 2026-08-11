@@ -4955,89 +4955,86 @@ if (command === "kick") {
         if (command === "getpp") {
           let targetJid = null;
 
-// ============================================
-// Resolve target from reply / mention / number
-// ============================================
+          const contextInfo =
+            message.message?.extendedTextMessage?.contextInfo;
 
-// 1. If replying to someone, get their participant ID
-const contextInfo =
-  message.message?.extendedTextMessage?.contextInfo;
+          // ============================================
+          // 1. Reply target
+          // ============================================
+          if (contextInfo?.participant) {
+            targetJid = contextInfo.participant;
+          }
 
-const repliedParticipant = contextInfo?.participant;
+          // ============================================
+          // 2. Mention target
+          // ============================================
+          const mentionedJids = contextInfo?.mentionedJid || [];
 
-if (repliedParticipant) {
-  targetJid = repliedParticipant;
-}
+          if (!targetJid && mentionedJids.length > 0) {
+            const mentionedJid = mentionedJids[0];
 
-// 2. If mentioning someone, resolve them from group metadata
-const mentionedJids = contextInfo?.mentionedJid || [];
+            if (isGroup) {
+              try {
+                const groupMetadata = await sock.groupMetadata(
+                  message.key.remoteJid
+                );
 
-if (!targetJid && mentionedJids.length > 0) {
-  const mentionedJid = mentionedJids[0];
+                const participant = groupMetadata.participants?.find((p) => {
+                  if (!p?.id) return false;
 
-  if (message.key.remoteJid?.endsWith("@g.us")) {
-    try {
-      const groupMetadata = await sock.groupMetadata(
-        message.key.remoteJid
-      );
+                  if (p.id === mentionedJid) return true;
+                  if (p.lid && p.lid === mentionedJid) return true;
+                  if (p.phoneNumber && p.phoneNumber === mentionedJid) {
+                    return true;
+                  }
 
-      const participant = groupMetadata.participants?.find((p) => {
-        if (!p?.id) return false;
+                  return false;
+                });
 
-        // Exact match
-        if (p.id === mentionedJid) return true;
+                if (participant) {
+                  targetJid = participant.id;
+                }
+              } catch (err) {
+                logger.error(
+                  { error: err.message },
+                  "Failed to resolve getpp participant"
+                );
+              }
+            } else {
+              targetJid = mentionedJid;
+            }
+          }
 
-        // Match LID / alternate identity when available
-        if (p.lid && p.lid === mentionedJid) return true;
+          // ============================================
+          // 3. Number supplied
+          // ============================================
+          if (!targetJid && args[0]) {
+            const num = args[0].replace(/[^0-9]/g, '');
 
-        if (p.phoneNumber && p.phoneNumber === mentionedJid) {
-          return true;
-        }
+            if (num.length >= 10) {
+              targetJid = `${num}@s.whatsapp.net`;
+            }
+          }
 
-        // Normalized fallback
-        try {
-          return normalizeJid(p.id) === normalizeJid(mentionedJid);
-        } catch {
-          return false;
-        }
-      });
+          // ============================================
+          // 4. DM fallback
+          // ============================================
+          if (
+            !targetJid &&
+            !isGroup &&
+            message.key.remoteJid
+          ) {
+            targetJid = message.key.remoteJid;
+          }
 
-      if (participant) {
-        // IMPORTANT: use WhatsApp's actual participant ID
-        targetJid = participant.id;
-      }
-    } catch (err) {
-      logger.error(
-        { error: err.message },
-        "Failed to resolve getpp group participant"
-      );
-    }
-  } else {
-    targetJid = mentionedJid;
-  }
-}
-
-// 3. If a number was supplied, convert it normally
-if (!targetJid && args[0]) {
-  const num = args[0].replace(/[^0-9]/g, '');
-
-  if (num.length >= 10) {
-    targetJid = `${num}@s.whatsapp.net`;
-  }
-}
-
-// 4. DM fallback — the person you're chatting with
-if (
-  !targetJid &&
-  !message.key.remoteJid?.endsWith("@g.us") &&
-  message.key.remoteJid
-) {
-  targetJid = message.key.remoteJid;
-}
-          
           if (!targetJid) {
             await sock.sendMessage(message.key.remoteJid, {
-              text: "❌ Reply to a message, mention someone, or provide a number.\n\nUsage:\n• Reply to message with 'getpp\n• 'getpp @user\n• 'getpp 2348012345678",
+              text:
+                "❌ Reply to a message, mention someone, or provide a number.\n\n" +
+                "Usage:\n" +
+                `• ${PREFIX}getpp @user\n` +
+                `• ${PREFIX}getpp 2348012345678\n` +
+                `• Reply to a message with ${PREFIX}getpp`
             });
             return;
           }
@@ -5045,68 +5042,63 @@ if (
           try {
             let ppUrl = null;
 
-            // Direct Raw Query: Bypasses the buggy sock.profilePictureUrl completely
+            // ============================================
+            // Use the same PP method as {userpp}
+            // ============================================
             try {
-              const res = await sock.query({
-                tag: 'iq',
-                attrs: {
-                  to: targetJid,
-                  type: 'get',
-                  xmlns: 'w:profile:picture'
-                },
-                content: [{ tag: 'picture', attrs: { type: 'image', query: 'url' } }]
-              });
-
-              // Extract the URL from the raw XML node response
-              if (res && res.content && res.content[0]) {
-                ppUrl = res.content[0].attrs.url;
-              }
-            } catch (rawErr) {
-              // Fallback to preview type query if high-res fails
+              ppUrl = await sock.profilePictureUrl(targetJid, "image");
+            } catch (imageErr) {
               try {
-                const previewRes = await sock.query({
-                  tag: 'iq',
-                  attrs: {
-                    to: targetJid,
-                    type: 'get',
-                    xmlns: 'w:profile:picture'
-                  },
-                  content: [{ tag: 'picture', attrs: { type: 'preview', query: 'url' } }]
-                });
-                if (previewRes && previewRes.content && previewRes.content[0]) {
-                  ppUrl = previewRes.content[0].attrs.url;
-                }
-              } catch (previewErr) {
-                logger.error({ error: previewErr.message }, 'Raw preview query failed');
+                ppUrl = await sock.profilePictureUrl(targetJid, "display");
+              } catch (displayErr) {
+                logger.info(
+                  { target: targetJid },
+                  "No profile picture found with image/display lookup"
+                );
               }
             }
 
-            if (ppUrl) {
-              // Download and send the image
-              const response = await axios.get(ppUrl, { responseType: 'arraybuffer' });
-              const imageBuffer = Buffer.from(response.data);
-              
+            if (!ppUrl) {
               await sock.sendMessage(message.key.remoteJid, {
-                image: imageBuffer,
-                caption: `👤 Profile Picture\n📱 @${targetJid.split("@")[0]}`,
-                mentions: [targetJid]
+                text: "❌ Profile picture unavailable or hidden by privacy settings."
               });
-            } else {
-              await sock.sendMessage(message.key.remoteJid, {
-                text: "❌ Profile picture unavailable or hidden by privacy settings.",
-              });
+              return;
             }
-          } catch (err) {
-            logger.error({ error: err.message }, 'Get PP error');
+
+            const response = await axios.get(ppUrl, {
+              responseType: "arraybuffer",
+              timeout: 10000
+            });
+
+            const imageBuffer = Buffer.from(response.data);
+
             await sock.sendMessage(message.key.remoteJid, {
-              text: "❌ Could not fetch profile picture. An unexpected server error occurred.",
+              image: imageBuffer,
+              caption: `👤 Profile Picture\n📱 @${targetJid.split("@")[0]}`,
+              mentions: [targetJid]
+            });
+
+            logger.info(
+              { target: targetJid },
+              "Profile picture fetched successfully"
+            );
+
+          } catch (err) {
+            logger.error(
+              { target: targetJid, error: err.message },
+              "Get PP error"
+            );
+
+            await sock.sendMessage(message.key.remoteJid, {
+              text:
+                "❌ Could not fetch that profile picture.\n\n" +
+                "The user may have restricted their profile picture " +
+                "or WhatsApp may not have returned the picture."
             });
           }
+
           return;
-              }
-          
-          
-    
+        }
 
         if (command === "warn") {
           let targetJid = null;
@@ -6330,6 +6322,98 @@ Longest Word: "${stats.longestWord.word || 'N/A'}" (${stats.longestWord.length |
               });
             }
           }
+          return;
+        }
+
+        // ============================================
+        // GET PROFILE PICTURE - DM
+        // ============================================
+        if (command === "getpp") {
+          let targetJid = null;
+
+          const contextInfo =
+            message.message?.extendedTextMessage?.contextInfo;
+
+          // 1. Reply target
+          if (contextInfo?.participant) {
+            targetJid = contextInfo.participant;
+          }
+
+          // 2. Mention target
+          if (!targetJid && contextInfo?.mentionedJid?.length) {
+            targetJid = contextInfo.mentionedJid[0];
+          }
+
+          // 3. Number supplied
+          if (!targetJid && args[0]) {
+            const num = args[0].replace(/[^0-9]/g, '');
+
+            if (num.length >= 10) {
+              targetJid = `${num}@s.whatsapp.net`;
+            }
+          }
+
+          // 4. No target = person we're chatting with
+          if (!targetJid) {
+            targetJid = message.key.remoteJid;
+          }
+
+          try {
+            let ppUrl = null;
+
+            // Try Baileys profile-picture API first
+            try {
+              ppUrl = await sock.profilePictureUrl(
+                targetJid,
+                "image"
+              );
+            } catch (e) {
+              try {
+                ppUrl = await sock.profilePictureUrl(
+                  targetJid,
+                  "preview"
+                );
+              } catch (e2) {
+                // No profile picture
+              }
+            }
+
+            if (!ppUrl) {
+              await sock.sendMessage(message.key.remoteJid, {
+                text: "❌ Profile picture unavailable or hidden by privacy settings."
+              });
+              return;
+            }
+
+            const response = await axios.get(ppUrl, {
+              responseType: "arraybuffer",
+              timeout: 15000
+            });
+
+            const imageBuffer = Buffer.from(response.data);
+
+            await sock.sendMessage(message.key.remoteJid, {
+              image: imageBuffer,
+              caption: `👤 *Profile Picture*\n📱 @${targetJid.split("@")[0]}`,
+              mentions: [targetJid]
+            });
+
+            logger.info(
+              { target: targetJid },
+              "Profile picture fetched from DM"
+            );
+
+          } catch (err) {
+            logger.error(
+              { error: err.message, target: targetJid },
+              "DM getpp failed"
+            );
+
+            await sock.sendMessage(message.key.remoteJid, {
+              text: "❌ Could not fetch that profile picture.\n\nIt may be hidden by the user's privacy settings."
+            });
+          }
+
           return;
         }
 
