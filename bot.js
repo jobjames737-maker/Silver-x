@@ -1,4 +1,4 @@
-﻿const {
+const {
   default: makeWASocket,
   useMultiFileAuthState,
   DisconnectReason,
@@ -78,6 +78,25 @@ const groupActivity = {}; // { groupId: { userId: { count, lastMessage } } }
 
 const activityTracking = {}; // { groupId: true }
 const pendingKickInactive = {};
+
+// ============================================
+// EXP / LEVEL SYSTEM
+// ============================================
+
+// EXP enabled per group — disabled by default
+const expEnabled = {}; // { groupJid: true }
+
+// User EXP data per group
+// { groupJid: { userJid: { xp, level } } }
+const userExp = {};
+
+// EXP cooldowns — prevents message spam from farming XP
+const expCooldowns = new Map();
+
+// EXP settings
+const EXP_MIN = 5;
+const EXP_MAX = 15;
+const EXP_COOLDOWN = 60 * 1000; // 60 seconds
 // Anti-mention Settings (for groups)
 const antiMentionGroups = {}; // { groupJid: true/false }
 
@@ -211,6 +230,16 @@ if (data.groupActivity) {
       if (data.activityTracking) {
   Object.assign(activityTracking, data.activityTracking);
       }
+
+      // Load EXP system data
+      if (data.expEnabled) {
+        Object.assign(expEnabled, data.expEnabled);
+      }
+
+      if (data.userExp) {
+        Object.assign(userExp, data.userExp);
+      }
+
       logger.info('Bot data loaded successfully from JSON');
     } else {
       logger.info('No existing data file found, starting fresh');
@@ -245,6 +274,8 @@ const saveData = () => {
       antiDeleteEnabled,
       groupActivity,
       activityTracking,
+      expEnabled,
+      userExp,
       lastSaved: new Date().toISOString()
     };
     
@@ -254,6 +285,39 @@ const saveData = () => {
     logger.error({ error: error.message }, 'Error saving bot data');
   }
 };
+// ============================================
+// EXP / LEVEL CALCULATION
+// ============================================
+
+function getExpRequired(level) {
+  return level * 100;
+}
+
+function calculateLevel(exp) {
+  let level = 1;
+
+  while (exp >= getExpRequired(level)) {
+    exp -= getExpRequired(level);
+    level++;
+  }
+
+  return level;
+}
+
+// ============================================
+// EXP RANK TITLES
+// ============================================
+function getExpTitle(level) {
+  if (level >= 100) return "☠️ SILVER GOD";
+  if (level >= 75) return "🌌 Mythic";
+  if (level >= 50) return "🐉 Legend";
+  if (level >= 30) return "👑 Veteran";
+  if (level >= 20) return "💎 Elite";
+  if (level >= 10) return "🔥 Active";
+  if (level >= 5) return "⚡ Rising Star";
+  return "🌱 Beginner";
+}
+
 async function getInactiveMembers(groupMetadata, groupActivityData, myJid, threshold = 50) {
   const inactive = [];
 
@@ -287,6 +351,8 @@ async function getInactiveMembers(groupMetadata, groupActivityData, myJid, thres
 
   return inactive;
 }
+
+// ============================================
 // Auto-save data every 5 minutes
 setInterval(() => {
   saveData();
@@ -2514,6 +2580,81 @@ if (message.key.remoteJid.endsWith("@g.us") && !message.key.fromMe) {
 
       const isGroup = message.key.remoteJid.endsWith("@g.us");
       const isDM = !isGroup;
+
+      // ============================================
+      // EXP SYSTEM — AUTOMATIC MESSAGE XP
+      // ============================================
+      if (
+        isGroup &&
+        !message.key.fromMe &&
+        expEnabled[message.key.remoteJid]
+      ) {
+        const groupJid = message.key.remoteJid;
+        const userJid =
+          message.key.participant ||
+          message.key.remoteJid;
+
+        const cooldownKey = `${groupJid}:${userJid}`;
+        const now = Date.now();
+        const lastExpTime = expCooldowns.get(cooldownKey) || 0;
+
+        // Prevent EXP farming by message spam
+        if (now - lastExpTime >= EXP_COOLDOWN) {
+          const earnedExp =
+            Math.floor(
+              Math.random() * (EXP_MAX - EXP_MIN + 1)
+            ) + EXP_MIN;
+
+          if (!userExp[groupJid]) {
+            userExp[groupJid] = {};
+          }
+
+          if (!userExp[groupJid][userJid]) {
+            userExp[groupJid][userJid] = {
+              exp: 0,
+              level: 1
+            };
+          }
+
+          const userData = userExp[groupJid][userJid];
+
+          const oldLevel = userData.level;
+          const oldTitle = getExpTitle(oldLevel);
+
+          userData.exp += earnedExp;
+
+          const newLevel = calculateLevel(userData.exp);
+          const newTitle = getExpTitle(newLevel);
+
+          userData.level = newLevel;
+
+          expCooldowns.set(cooldownKey, now);
+
+          // ============================================
+          // LEVEL UP NOTIFICATION
+          // ============================================
+          if (newLevel > oldLevel) {
+            const titleChanged = newTitle !== oldTitle;
+
+            await sock.sendMessage(groupJid, {
+              text:
+                "╭━━━〔 🎉 LEVEL UP! 〕━━━╮\\n\\n" +
+                `👤 @${userJid.split("@")[0]}\\n` +
+                `⭐ *Level ${newLevel}*\\n` +
+                `🏅 *${newTitle}*\\n` +
+                `✨ EXP: *${userData.exp}*\\n\\n` +
+                (titleChanged
+                  ? "🎖️ *NEW RANK TITLE UNLOCKED!*\\n\\n"
+                  : "🔥 Keep chatting to reach the next level!\\n\\n") +
+                "╰━━━━━━━━━━━━━━━━━━━━╯",
+              mentions: [userJid]
+            });
+          }
+
+          // Save EXP progress
+          saveData();
+        }
+      }
       let sender = message.key.participant || message.key.remoteJid;
       const myJid = sock.user.id;
       const displaySender =
@@ -3365,6 +3506,350 @@ Current Prefix: ${PREFIX}
         }
         
         // ============================================
+// EXP SYSTEM CONTROL
+// ============================================
+if (command === "exp") {
+
+  if (!isGroup) {
+    await sock.sendMessage(message.key.remoteJid, {
+      text: "❌ This command only works in groups."
+    });
+    return;
+  }
+
+  // Admins, bot owner and sudo users only
+  if (!isAdmin && !canUseAsOwner) {
+    await sock.sendMessage(message.key.remoteJid, {
+      text: "❌ Only group admins or sudo users can control the EXP system."
+    });
+    return;
+  }
+
+  const option = (args[0] || "").toLowerCase();
+  const groupJid = message.key.remoteJid;
+
+  if (option === "enable") {
+    expEnabled[groupJid] = true;
+    saveData();
+
+    await sock.sendMessage(groupJid, {
+      text:
+        "╭━━━〔 ⭐ EXP SYSTEM 〕━━━╮\n\n" +
+        "✅ *EXP system enabled!*\n\n" +
+        "Members can now earn EXP by chatting in this group.\n" +
+        "🎯 EXP is awarded automatically with a cooldown.\n\n" +
+        "╰━━━━━━━━━━━━━━━━━━━━╯"
+    });
+    return;
+  }
+
+  if (option === "disable") {
+    delete expEnabled[groupJid];
+    saveData();
+
+    await sock.sendMessage(groupJid, {
+      text:
+        "╭━━━〔 ⭐ EXP SYSTEM 〕━━━╮\n\n" +
+        "❌ *EXP system disabled.*\n\n" +
+        "Members will no longer gain EXP in this group.\n\n" +
+        "╰━━━━━━━━━━━━━━━━━━━━╯"
+    });
+    return;
+  }
+
+  if (option === "status") {
+    const enabled = !!expEnabled[groupJid];
+
+    await sock.sendMessage(groupJid, {
+      text:
+        "╭━━━〔 ⭐ EXP SYSTEM 〕━━━╮\n\n" +
+        `📊 Status: ${enabled ? "✅ Enabled" : "❌ Disabled"}\n\n` +
+        "╰━━━━━━━━━━━━━━━━━━━━╯"
+    });
+    return;
+  }
+
+  await sock.sendMessage(groupJid, {
+    text:
+      "╭━━━〔 ⭐ EXP SYSTEM 〕━━━╮\n\n" +
+      `• ${PREFIX}exp enable\n` +
+      `• ${PREFIX}exp disable\n` +
+      `• ${PREFIX}exp status\n\n` +
+      "👮 Only group admins and sudo users can control EXP.\n\n" +
+      "╰━━━━━━━━━━━━━━━━━━━━╯"
+  });
+
+  return;
+}
+
+// ============================================
+// EXP RANK / LEVEL COMMAND
+// ============================================
+if (command === "rank" || command === "level") {
+
+  if (!isGroup) {
+    await sock.sendMessage(message.key.remoteJid, {
+      text: "❌ This command only works in groups."
+    });
+    return;
+  }
+
+  const groupJid = message.key.remoteJid;
+
+  // EXP must be enabled in this group
+  if (!expEnabled[groupJid]) {
+    await sock.sendMessage(groupJid, {
+      text:
+        "❌ *EXP system is disabled in this group.*\\n\\n" +
+        `An admin can enable it with *${PREFIX}exp enable*.`
+    });
+    return;
+  }
+
+  const contextInfo =
+    message.message?.extendedTextMessage?.contextInfo;
+
+  let targetJid = null;
+
+  // 1. Reply target
+  if (contextInfo?.participant) {
+    targetJid = contextInfo.participant;
+  }
+
+  // 2. Mention target
+  if (!targetJid && contextInfo?.mentionedJid?.length) {
+    targetJid = contextInfo.mentionedJid[0];
+  }
+
+  // 3. Default to command sender
+  if (!targetJid) {
+    targetJid =
+      message.key.participant ||
+      message.key.remoteJid;
+  }
+
+  if (!userExp[groupJid]) {
+    userExp[groupJid] = {};
+  }
+
+  if (!userExp[groupJid][targetJid]) {
+    userExp[groupJid][targetJid] = {
+      exp: 0,
+      level: 1
+    };
+  }
+
+  const userData = userExp[groupJid][targetJid];
+
+  const currentLevel = calculateLevel(userData.exp);
+  const expTitle = getExpTitle(currentLevel);
+
+  userData.level = currentLevel;
+
+  // Total EXP required to reach the next level
+  let expBeforeCurrentLevel = 0;
+
+  for (let i = 1; i < currentLevel; i++) {
+    expBeforeCurrentLevel += getExpRequired(i);
+  }
+
+  const currentLevelExp =
+    userData.exp - expBeforeCurrentLevel;
+
+  const nextLevelExp =
+    getExpRequired(currentLevel);
+
+  const progress =
+    Math.min(
+      100,
+      Math.floor(
+        (currentLevelExp / nextLevelExp) * 100
+      )
+    );
+
+  const remaining =
+    Math.max(
+      0,
+      nextLevelExp - currentLevelExp
+    );
+
+  const barLength = 12;
+
+  const filled =
+    Math.round(
+      (progress / 100) * barLength
+    );
+
+  const progressBar =
+    "█".repeat(filled) +
+    "░".repeat(barLength - filled);
+
+  await sock.sendMessage(groupJid, {
+    text:
+      "╭━━━〔 🏆 EXP RANK 〕━━━╮\\n\\n" +
+      `👤 @${targetJid.split("@")[0]}\\n` +
+      `🏅 *Title:* ${expTitle}\\n\\n` +
+      `⭐ *Level:* ${currentLevel}\\n` +
+      `✨ *EXP:* ${userData.exp}\\n\\n` +
+      `${progressBar} *${progress}%*\\n\\n` +
+      `📈 *Next Level:* ${nextLevelExp} EXP\\n` +
+      `💫 *Remaining:* ${remaining} EXP\\n\\n` +
+      "╰━━━━━━━━━━━━━━━━━━━━╯",
+    mentions: [targetJid]
+  });
+
+  return;
+}
+
+// ============================================
+// EXP LEADERBOARD
+// ============================================
+if (command === "expleaderboard" || command === "top") {
+
+  if (!isGroup) {
+    await sock.sendMessage(message.key.remoteJid, {
+      text: "❌ This command only works in groups."
+    });
+    return;
+  }
+
+  const groupJid = message.key.remoteJid;
+
+  // EXP must be enabled in this group
+  if (!expEnabled[groupJid]) {
+    await sock.sendMessage(groupJid, {
+      text:
+        "❌ *EXP system is disabled in this group.*\\n\\n" +
+        `An admin can enable it with *${PREFIX}exp enable*.`
+    });
+    return;
+  }
+
+  const groupExp = userExp[groupJid] || {};
+
+  const leaderboard = Object.entries(groupExp)
+    .map(([jid, data]) => ({
+      jid,
+      exp: Number(data.exp) || 0,
+      level: calculateLevel(Number(data.exp) || 0)
+    }))
+    .sort((a, b) => {
+      if (b.exp !== a.exp) return b.exp - a.exp;
+      return b.level - a.level;
+    })
+    .slice(0, 10);
+
+  if (leaderboard.length === 0) {
+    await sock.sendMessage(groupJid, {
+      text:
+        "╭━━━〔 🏆 EXP LEADERBOARD 〕━━━╮\\n\\n" +
+        "📭 No EXP has been earned yet.\\n\\n" +
+        `💬 Start chatting to earn EXP!\\n\\n` +
+        "╰━━━━━━━━━━━━━━━━━━━━╯"
+    });
+    return;
+  }
+
+  const medals = ["🥇", "🥈", "🥉"];
+  const mentions = [];
+
+  let text =
+    "╭━━━〔 🏆 EXP LEADERBOARD 〕━━━╮\\n\\n";
+
+  leaderboard.forEach((user, index) => {
+    const medal = medals[index] || `${index + 1}️⃣`;
+
+    mentions.push(user.jid);
+
+    text +=
+      `${medal} @${user.jid.split("@")[0]}\\n` +
+      `   ⭐ Level ${user.level} • ✨ ${user.exp} EXP\\n\\n`;
+  });
+
+  text += "╰━━━━━━━━━━━━━━━━━━━━╯";
+
+  await sock.sendMessage(groupJid, {
+    text,
+    mentions
+  });
+
+  return;
+}
+
+// ============================================
+// EXP LEADERBOARD
+// ============================================
+if (command === "leaderboard" || command === "lb" || command === "top") {
+
+  if (!isGroup) {
+    await sock.sendMessage(message.key.remoteJid, {
+      text: "❌ This command only works in groups."
+    });
+    return;
+  }
+
+  const groupJid = message.key.remoteJid;
+
+  if (!expEnabled[groupJid]) {
+    await sock.sendMessage(groupJid, {
+      text:
+        "❌ *EXP system is disabled in this group.*\\n\\n" +
+        `An admin can enable it with *${PREFIX}exp enable*.`
+    });
+    return;
+  }
+
+  const groupUsers = userExp[groupJid] || {};
+
+  const ranked = Object.entries(groupUsers)
+    .filter(([jid, data]) => data && Number(data.exp) > 0)
+    .sort((a, b) => Number(b[1].exp) - Number(a[1].exp))
+    .slice(0, 10);
+
+  if (ranked.length === 0) {
+    await sock.sendMessage(groupJid, {
+      text:
+        "╭━━━〔 🏆 EXP LEADERBOARD 〕━━━╮\\n\\n" +
+        "📭 No members have earned EXP yet.\\n\\n" +
+        `💬 Start chatting to become the first!\\n\\n` +
+        "╰━━━━━━━━━━━━━━━━━━━━━━━━╯"
+    });
+    return;
+  }
+
+  const mentions = [];
+
+  let text =
+    "╭━━━〔 🏆 EXP LEADERBOARD 〕━━━╮\\n\\n" +
+    "      ⭐ *TOP 10 MEMBERS* ⭐\\n\\n";
+
+  ranked.forEach(([jid, data], index) => {
+
+    const exp = Number(data.exp) || 0;
+    const level = calculateLevel(exp);
+    const title = getExpTitle(level);
+
+    const medals = ["🥇", "🥈", "🥉"];
+    const position = medals[index] || `*${index + 1}.*`;
+
+    mentions.push(jid);
+
+    text +=
+      `${position} @${jid.split("@")[0]}\\n` +
+      `   🏅 ${title} • ⭐ Lv.${level} • ✨ ${exp} EXP\\n\\n`;
+  });
+
+  text += "╰━━━━━━━━━━━━━━━━━━━━━━━━╯";
+
+  await sock.sendMessage(groupJid, {
+    text,
+    mentions
+  });
+
+  return;
+}
+
+// ============================================
 // Kick Inactive Members
 // ============================================
 if (command === "kickinactive") {
