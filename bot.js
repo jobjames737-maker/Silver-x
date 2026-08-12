@@ -3342,13 +3342,21 @@ console.log('MESSAGE TYPE:', Object.keys(message.message || {}));
 
         const canUseBot = canUseAsOwner || (botMode === "public");
 
+        const expPublicCommands =
+          isGroup &&
+          expEnabled[message.key.remoteJid] &&
+          ["rank", "level", "top", "expleaderboard"].includes(command);
+
+        const canUseExpCommand =
+          canUseAsOwner || canUseBot || expPublicCommands;
+
         // Non-command group messages should return after anti-* enforcement
         // But allow sticker messages through for sticker command detection
         if ((!text || !text.startsWith(PREFIX)) && !hasStickerMessage) return;
 
         // Silent return for non-authorized users in private mode
         // Allow ONLY owner/sudo to use commands when in private mode
-        if (!canUseBot && text && text.startsWith(PREFIX)) {
+        if (!canUseExpCommand && text && text.startsWith(PREFIX)) {
           logger.debug({ command, sender, botMode }, 'Non-owner attempted command in private mode - ignoring');
           return;
         }
