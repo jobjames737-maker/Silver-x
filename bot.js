@@ -1594,36 +1594,47 @@ const getMenu = () => `
 ╰━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━╯
 
 ╭─〔 ⚡ SYSTEM STATUS 〕────────────────╮
-│ 👑 Owner    │ ${BOT_OWNER || 'Unknown'}
-│ 🌐 Mode     │ ${botMode.toUpperCase()}
-│ ⏱ Uptime    │ ${formatUptime()}
-│ 🚀 Version  │ v2.0.0
+│ 👑 *Owner*    │ ${BOT_OWNER || 'Unknown'}
+│ 🌐 *Mode*     │ ${botMode.toUpperCase()}
+│ ⏱ *Uptime*    │ ${formatUptime()}
+│ 🚀 *Version*  │ v2.0.0
 │
-│ 🟣 CPU    ▰▰▰▰▰▰▱▱▱ 70%
-│ 🔵 RAM    ▰▰▰▰▰▰▰▰▱ 90%
-│ 🟢 BOT    ▰▰▰▰▰▰▰▰▰ ONLINE
+│ 🟣 *CPU*    ▰▰▰▰▰▰▱▱▱ 70%
+│ 🔵 *RAM*    ▰▰▰▰▰▰▰▰▱ 90%
+│ 🟢 *BOT*    ▰▰▰▰▰▰▰▰▰ ONLINE
 ╰──────────────────────────────────────╯
 
-╔══════════════ 👥 GROUP ══════════════╗
-║ 🔒 lock          🔓 open   
-║ 👢 kick          ⚠️ warn. 
-║ ♻️ unwarn        ⬆️ promote 
-║ ⬇️ demote        🚫 block
-║ ✅ unblock       🚪 left
-║ 📥 acceptall     ❌ rejectall
-║ 🌙 nightmode on|off 🏋️trackactivity status
-║ 🏋️👀trackactivity on|off                  
-╚══════════════════════════════════════╝
+╔═════ 👥 *GROUP* ════════╗
+║ 🔓 open
+║ 🔒 lock             
+║ 👢 kick 
+║ ⚠️ warn. 
+║ ♻️ unwarn       
+║ ⬆️ promote 
+║ ⬇️ demote 
+║ 🚫 block
+║ ✅ unblock      
+║ 🚪 left
+║ 📥 acceptall    
+║ ❌ rejectall
+║ 🌙 nightmode on|off 
+║ 🏋️trackactivity status
+║ 👀trackactivity on|off 
+╚════════════════════════╝
 
-╔════════ 🏆 MEMBER MANAGEMENT ════════╗
+╔════ 🏆 *MEMBER* *MANAGEMENT* ═══════╗
 ║ 📊 listactive
 ║ 👻 inactive
 ║ 🦵 kickinactive
 ║ ✅ confirmkick
-║ ❌ cancelkick
-╚══════════════════════════════════════╝
+║ ❌ cancelkick ║ 👻 lb
+║ 🎩 top
+║ 🏆 leaderboard
+║ 🔝 expleaderboard
+║ 🎚️ level
+╚══════════════════════════════════╝
 
-╔══════════════ 💬 CHAT ═══════════════╗
+╔═════════ 💬 *CHAT* ════════════╗
 ║ 🔗 antilink       🖼 antiphoto
 ║ 📢 antistatus     🏷 antitag
 ║ 🚫 antispam       👥 tagall
@@ -1631,46 +1642,46 @@ const getMenu = () => `
 ║ 👋 welcome        👋 goodbye
 ║ ✍️ setwelcome     ♻️ resetwelcome
 ║ ✍️ setgoodbye     ♻️ resetgoodbye
-╚══════════════════════════════════════╝
+╚═══════════════════════════════╝
 
-╔══════════════ 🎮 GAMES ══════════════╗
+╔════════ 🎮 *GAMES* ══════════╗
 ║ 🎭 anonymous
 ║ 🔤 rtw
 ║ 🔗 wcg
 ║ 📈 wcgstat
 ║ ❓ 400q
 ║ ⛔ end
-╚══════════════════════════════════════╝
+╚═════════════════════════════╝
 
-╔════════════ 🎨 STICKERS ═════════════╗
+╔══════ 🎨 *STICKERS* ═══════════╗
 ║ 🖼 sticker
 ║ ⭐ setsticker
-╚══════════════════════════════════════╝
+╚══════════════════════════════╝
 
-╔════════════ 🛠 UTILITIES ════════════╗
+╔════════ 🛠 *UTILITIES* ═══════════╗
 ║ 👁 vv            💾 save
 ║ 👤 getpp         🎵 play
 ║ 🏓 ping          🗑 delete
 ║ 📇 vcf           🌍 tr
 ║ 😴 afk           😊 back
 ║ 🖼 toimg         🎧 tomp3
-╚══════════════════════════════════════╝
+╚══════════════════════════════════╝
 
-╔═══════════ 📥 DOWNLOADS ═════════════╗
+╔══════ 📥 *DOWNLOADS* ══════╗
 ║ 🎵 tt
-╚══════════════════════════════════════╝
+╚══════════════════════════╝
 
-╔════════════ 💰 CRYPTO ═══════════════╗
+╔════ 💰 *CRYPTO* ══════════╗
 ║ 📈 live
-╚══════════════════════════════════════╝
+╚═════════════════════════╝
 
-╔════════════ ⚙ SETTINGS ═════════════╗
+╔════════════ ⚙ *SETTINGS* ══════════╗
 ║ 🌍 public        🔒 private
 ║ 🛡 antidel       👑 sudo
 ║ ❌ delsudo       📜 listsudo
 ║ ➕ join          📖 menu
 ║ ❔ help          ⚙️ setprefix 
-╚══════════════════════════════════════╝
+╚══════════════════════════════════╝
 
 ╭────────── 🤖 AUTO FEATURES ──────────╮
 │ 🌙 Night Mode          ● ACTIVE
