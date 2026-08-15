@@ -2908,6 +2908,97 @@ if (message.key.remoteJid.endsWith("@g.us") && !message.key.fromMe) {
   : (fullCommand || "");
       const args = text?.trim().split(" ").slice(1) || [];
 
+        // ============================================
+        // AUTO VIEW + REACT STATUS CONTROLS
+        // ============================================
+        if (command === "ar" && canUseAsOwner) {
+          const option = args[0]?.toLowerCase();
+
+          if (option === "on") {
+            autoReactEnabled = true;
+            saveData();
+
+            await sock.sendMessage(message.key.remoteJid, {
+              text:
+                "╭━━━〔 👀 AUTO REACT 〕━━━╮\n\n" +
+                "📡 Status: *ON* ✅\n" +
+                `🎭 Emojis: ${autoReactEmojis.join(" ")}\n` +
+                `⏱️ Cooldown: *${autoReactCooldown}s*\n\n` +
+                "╰━━━━━━━━━━━━━━━━━━━━╯"
+            });
+
+          } else if (option === "off") {
+            autoReactEnabled = false;
+            saveData();
+
+            await sock.sendMessage(message.key.remoteJid, {
+              text: "❌ *Auto view + auto react disabled.*"
+            });
+
+          } else {
+            await sock.sendMessage(message.key.remoteJid, {
+              text:
+                "╭━━━〔 👀 AUTO REACT 〕━━━╮\n\n" +
+                `📡 Status: ${autoReactEnabled ? "*ON* ✅" : "*OFF* ❌"}\n` +
+                `🎭 Emojis: ${autoReactEmojis.join(" ")}\n` +
+                `⏱️ Cooldown: *${autoReactCooldown}s*\n\n` +
+                "📌 *Commands:*\n" +
+                ".ar on — Enable\n" +
+                ".ar off — Disable\n" +
+                ".are 😂 ❤️ 🔥 — Set emojis\n" +
+                ".arc 5 — Set cooldown\n\n" +
+                "╰━━━━━━━━━━━━━━━━━━━━╯"
+            });
+          }
+
+          return;
+        }
+
+        if (command === "are" && canUseAsOwner) {
+          const emojis = args.filter(e => e.trim());
+
+          if (!emojis.length) {
+            await sock.sendMessage(message.key.remoteJid, {
+              text: "❌ Usage: .are 😂 ❤️ 🔥"
+            });
+            return;
+          }
+
+          autoReactEmojis = emojis;
+          saveData();
+
+          await sock.sendMessage(message.key.remoteJid, {
+            text:
+              "✅ *Auto-react emojis updated!*\n\n" +
+              `🎭 ${autoReactEmojis.join(" ")}`
+          });
+
+          return;
+        }
+
+        if (command === "arc" && canUseAsOwner) {
+          const seconds = Number(args[0]);
+
+          if (!Number.isFinite(seconds) || seconds < 1 || seconds > 60) {
+            await sock.sendMessage(message.key.remoteJid, {
+              text: "❌ Usage: .arc 5\n\nCooldown must be between *1 and 60 seconds*."
+            });
+            return;
+          }
+
+          autoReactCooldown = seconds;
+          saveData();
+
+          await sock.sendMessage(message.key.remoteJid, {
+            text:
+              "✅ *Auto-react cooldown updated!*\n\n" +
+              `⏱️ Cooldown: *${autoReactCooldown}s*`
+          });
+
+          return;
+        }
+
+
       // Ignore single dot or empty command - BUT allow sticker messages and group messages through (for anti-* enforcement)
       if ((command === "" || command === ".") && !hasStickerMessage && !isGroup) return;
 
@@ -4220,95 +4311,7 @@ if (command === "cancelkick") {
           return;
         }
 
-        // ============================================
-        // AUTO VIEW + REACT STATUS CONTROLS
-        // ============================================
-        if (command === "ar" && canUseAsOwner) {
-          const option = args[0]?.toLowerCase();
 
-          if (option === "on") {
-            autoReactEnabled = true;
-            saveData();
-
-            await sock.sendMessage(message.key.remoteJid, {
-              text:
-                "╭━━━〔 👀 AUTO REACT 〕━━━╮\n\n" +
-                "📡 Status: *ON* ✅\n" +
-                `🎭 Emojis: ${autoReactEmojis.join(" ")}\n` +
-                `⏱️ Cooldown: *${autoReactCooldown}s*\n\n` +
-                "╰━━━━━━━━━━━━━━━━━━━━╯"
-            });
-
-          } else if (option === "off") {
-            autoReactEnabled = false;
-            saveData();
-
-            await sock.sendMessage(message.key.remoteJid, {
-              text: "❌ *Auto view + auto react disabled.*"
-            });
-
-          } else {
-            await sock.sendMessage(message.key.remoteJid, {
-              text:
-                "╭━━━〔 👀 AUTO REACT 〕━━━╮\n\n" +
-                `📡 Status: ${autoReactEnabled ? "*ON* ✅" : "*OFF* ❌"}\n` +
-                `🎭 Emojis: ${autoReactEmojis.join(" ")}\n` +
-                `⏱️ Cooldown: *${autoReactCooldown}s*\n\n` +
-                "📌 *Commands:*\n" +
-                ".ar on — Enable\n" +
-                ".ar off — Disable\n" +
-                ".are 😂 ❤️ 🔥 — Set emojis\n" +
-                ".arc 5 — Set cooldown\n\n" +
-                "╰━━━━━━━━━━━━━━━━━━━━╯"
-            });
-          }
-
-          return;
-        }
-
-        if (command === "are" && canUseAsOwner) {
-          const emojis = args.filter(e => e.trim());
-
-          if (!emojis.length) {
-            await sock.sendMessage(message.key.remoteJid, {
-              text: "❌ Usage: .are 😂 ❤️ 🔥"
-            });
-            return;
-          }
-
-          autoReactEmojis = emojis;
-          saveData();
-
-          await sock.sendMessage(message.key.remoteJid, {
-            text:
-              "✅ *Auto-react emojis updated!*\n\n" +
-              `🎭 ${autoReactEmojis.join(" ")}`
-          });
-
-          return;
-        }
-
-        if (command === "arc" && canUseAsOwner) {
-          const seconds = Number(args[0]);
-
-          if (!Number.isFinite(seconds) || seconds < 1 || seconds > 60) {
-            await sock.sendMessage(message.key.remoteJid, {
-              text: "❌ Usage: .arc 5\n\nCooldown must be between *1 and 60 seconds*."
-            });
-            return;
-          }
-
-          autoReactCooldown = seconds;
-          saveData();
-
-          await sock.sendMessage(message.key.remoteJid, {
-            text:
-              "✅ *Auto-react cooldown updated!*\n\n" +
-              `⏱️ Cooldown: *${autoReactCooldown}s*`
-          });
-
-          return;
-        }
 
         if (command === "live") {
           const symbol = args[0];
