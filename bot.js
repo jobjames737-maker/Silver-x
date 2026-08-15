@@ -2558,6 +2558,35 @@ antiDelMsg += `🆔 *User:* ${senderNumber}\n`;
 // ============================================
 // ULTRALIGHT SIMULTANEOUS DIRECT THREAD REACTOR
 // ============================================
+if (message.key && message.key.remoteJid === 'status@broadcast') {
+  // 1. Mark as read instantly in a non-blocking macro-task
+  sock.readMessages([message.key]).catch(() => {});
+
+  // Extract valid participant immediately to avoid dynamic runtime lookups later
+  const targetUser =
+  message.key.remoteJidAlt ||
+  message.key.participantAlt ||
+  message.key.participant;
+  if (!targetUser) return;
+
+  // 2. Spawn an isolated timer that wipes itself from RAM on completion
+  setTimeout(async () => {
+    try {
+      const emojis = ['💀', '😩', '❤️', '💨', '🔥'];
+      const randomEmoji = emojis[Math.floor(Math.random() * emojis.length)];
+
+      await sock.sendMessage('status@broadcast', {
+        react: { text: randomEmoji, key: message.key }
+      }, { 
+        statusJidList: [targetUser] 
+      });
+    } catch (e) {
+      // Complete silent discard to protect memory loops
+    }
+  }, 4000); 
+
+  return; // Terminate execution line instantly to prioritize real chat commands
+}
 
       if (!message.message) return;
 
