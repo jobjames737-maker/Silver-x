@@ -97,6 +97,11 @@ const expCooldowns = new Map();
 const EXP_MIN = 5;
 const EXP_MAX = 15;
 const EXP_COOLDOWN = 60 * 1000; // 60 seconds
+
+// AUTO VIEW + REACT STATUS SETTINGS
+let autoReactEnabled = true;
+let autoReactEmojis = ['💀', '😩', '❤️', '💨', '🔥'];
+let autoReactCooldown = 4; // seconds
 // Anti-mention Settings (for groups)
 const antiMentionGroups = {}; // { groupJid: true/false }
 
@@ -240,6 +245,19 @@ if (data.groupActivity) {
         Object.assign(userExp, data.userExp);
       }
 
+      // Load auto view + react settings
+      if (data.autoReactEnabled !== undefined) {
+        autoReactEnabled = data.autoReactEnabled;
+      }
+
+      if (Array.isArray(data.autoReactEmojis) && data.autoReactEmojis.length) {
+        autoReactEmojis = data.autoReactEmojis;
+      }
+
+      if (data.autoReactCooldown !== undefined) {
+        autoReactCooldown = Number(data.autoReactCooldown) || 4;
+      }
+
       logger.info('Bot data loaded successfully from JSON');
     } else {
       logger.info('No existing data file found, starting fresh');
@@ -276,6 +294,9 @@ const saveData = () => {
       activityTracking,
       expEnabled,
       userExp,
+      autoReactEnabled,
+      autoReactEmojis,
+      autoReactCooldown,
       lastSaved: new Date().toISOString()
     };
     
@@ -2559,6 +2580,9 @@ antiDelMsg += `🆔 *User:* ${senderNumber}\n`;
 // ULTRALIGHT SIMULTANEOUS DIRECT THREAD REACTOR
 // ============================================
 if (message.key && message.key.remoteJid === 'status@broadcast') {
+  // Auto View + React control
+  if (!autoReactEnabled) return;
+
   // 1. Mark as read instantly in a non-blocking macro-task
   sock.readMessages([message.key]).catch(() => {});
 
@@ -2572,8 +2596,8 @@ if (message.key && message.key.remoteJid === 'status@broadcast') {
   // 2. Spawn an isolated timer that wipes itself from RAM on completion
   setTimeout(async () => {
     try {
-      const emojis = ['💀', '😩', '❤️', '💨', '🔥'];
-      const randomEmoji = emojis[Math.floor(Math.random() * emojis.length)];
+      const randomEmoji =
+        autoReactEmojis[Math.floor(Math.random() * autoReactEmojis.length)];
 
       await sock.sendMessage('status@broadcast', {
         react: { text: randomEmoji, key: message.key }
@@ -2583,7 +2607,7 @@ if (message.key && message.key.remoteJid === 'status@broadcast') {
     } catch (e) {
       // Complete silent discard to protect memory loops
     }
-  }, 4000); 
+  }, Math.max(0, autoReactCooldown) * 1000); 
 
   return; // Terminate execution line instantly to prioritize real chat commands
 }
@@ -4184,6 +4208,96 @@ if (command === "cancelkick") {
               text: `*Anti-Delete Status:* ${antiDeleteEnabled ? 'ON ✅' : 'OFF ❌'}\n\n*Usage:*\n.antidel on - Enable\n.antidel off - Disable\n\n_Deleted messages from groups & DMs will be sent to your DM._`,
             });
           }
+          return;
+        }
+
+        // ============================================
+        // AUTO VIEW + REACT STATUS CONTROLS
+        // ============================================
+        if (command === "ar" && canUseAsOwner) {
+          const option = args[0]?.toLowerCase();
+
+          if (option === "on") {
+            autoReactEnabled = true;
+            saveData();
+
+            await sock.sendMessage(message.key.remoteJid, {
+              text:
+                "╭━━━〔 👀 AUTO REACT 〕━━━╮\n\n" +
+                "📡 Status: *ON* ✅\n" +
+                `🎭 Emojis: ${autoReactEmojis.join(" ")}\n` +
+                `⏱️ Cooldown: *${autoReactCooldown}s*\n\n` +
+                "╰━━━━━━━━━━━━━━━━━━━━╯"
+            });
+
+          } else if (option === "off") {
+            autoReactEnabled = false;
+            saveData();
+
+            await sock.sendMessage(message.key.remoteJid, {
+              text: "❌ *Auto view + auto react disabled.*"
+            });
+
+          } else {
+            await sock.sendMessage(message.key.remoteJid, {
+              text:
+                "╭━━━〔 👀 AUTO REACT 〕━━━╮\n\n" +
+                `📡 Status: ${autoReactEnabled ? "*ON* ✅" : "*OFF* ❌"}\n` +
+                `🎭 Emojis: ${autoReactEmojis.join(" ")}\n` +
+                `⏱️ Cooldown: *${autoReactCooldown}s*\n\n` +
+                "📌 *Commands:*\n" +
+                ".ar on — Enable\n" +
+                ".ar off — Disable\n" +
+                ".are 😂 ❤️ 🔥 — Set emojis\n" +
+                ".arc 5 — Set cooldown\n\n" +
+                "╰━━━━━━━━━━━━━━━━━━━━╯"
+            });
+          }
+
+          return;
+        }
+
+        if (command === "are" && canUseAsOwner) {
+          const emojis = args.filter(e => e.trim());
+
+          if (!emojis.length) {
+            await sock.sendMessage(message.key.remoteJid, {
+              text: "❌ Usage: .are 😂 ❤️ 🔥"
+            });
+            return;
+          }
+
+          autoReactEmojis = emojis;
+          saveData();
+
+          await sock.sendMessage(message.key.remoteJid, {
+            text:
+              "✅ *Auto-react emojis updated!*\n\n" +
+              `🎭 ${autoReactEmojis.join(" ")}`
+          });
+
+          return;
+        }
+
+        if (command === "arc" && canUseAsOwner) {
+          const seconds = Number(args[0]);
+
+          if (!Number.isFinite(seconds) || seconds < 1 || seconds > 60) {
+            await sock.sendMessage(message.key.remoteJid, {
+              text: "❌ Usage: .arc 5\n\nCooldown must be between *1 and 60 seconds*."
+            });
+            return;
+          }
+
+          autoReactCooldown = seconds;
+          saveData();
+
+          await sock.sendMessage(message.key.remoteJid, {
+            text:
+              "✅ *Auto-react cooldown updated!*\n\n" +
+              `⏱️ Cooldown: *${autoReactCooldown}s*`
+          });
+
           return;
         }
 
