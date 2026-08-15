@@ -1614,7 +1614,7 @@ const getMenu = () => `
 │       「 Community Manager 」
 ╰━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━╯
 
-╭─〔 ⚡ SYSTEM STATUS 〕────────────────╮
+╭─〔 ⚡ SYSTEM STATUS 〕────────────╮
 │ 👑 *Owner*    │ ${BOT_OWNER || 'Unknown'}
 │ 🌐 *Mode*     │ ${botMode.toUpperCase()}
 │ ⏱ *Uptime*    │ ${formatUptime()}
@@ -1623,7 +1623,7 @@ const getMenu = () => `
 │ 🟣 *CPU*    ▰▰▰▰▰▰▱▱▱ 70%
 │ 🔵 *RAM*    ▰▰▰▰▰▰▰▰▱ 90%
 │ 🟢 *BOT*    ▰▰▰▰▰▰▰▰▰ ONLINE
-╰──────────────────────────────────────╯
+╰─────────────────────────────────────╯
 
 ╔═════ 👥 *GROUP* ════════╗
 ║ 🔓 open
@@ -1648,7 +1648,8 @@ const getMenu = () => `
 ║ 👻 inactive
 ║ 🦵 kickinactive
 ║ ✅ confirmkick
-║ ❌ cancelkick ║ 👻 lb
+║ ❌ cancelkick 
+║ 👻 lb
 ║ 🎩 top
 ║ 🏆 leaderboard
 ║ 🔝 expleaderboard
@@ -1687,6 +1688,14 @@ const getMenu = () => `
 ║ 😴 afk           😊 back
 ║ 🖼 toimg         🎧 tomp3
 ╚══════════════════════════════════╝
+
+╔═════ 🛠 *Autoreact status* ════════╗
+║  ar          → Show settings
+║  ar on       → Turn on
+║  ar off      → Turn off
+║  are (emojis)→ Change reaction emojis
+║  arc 5       → Set 5-second delay
+╚════════════════════════════════╝
 
 ╔══════ 📥 *DOWNLOADS* ══════╗
 ║ 🎵 tt
